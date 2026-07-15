@@ -1,0 +1,143 @@
+@page "/reservations"
+@using StudySpot.Models
+@using StudySpot.Services
+@inject ReservationService ReservationService
+@inject RoomService RoomService
+
+<PageTitle>Appointments</PageTitle>
+
+<h1>Appointments</h1>
+
+<div class="reservation-actions">
+    <a class="button-link" href="/floor-plan">View Floor Plan</a>
+    <a class="button-link secondary" href="/reservation-calendar">
+        Make Appointment
+    </a>
+</div>
+
+@if (loading)
+{
+    <p>Loading appointments...</p>
+}
+else if (!string.IsNullOrWhiteSpace(message))
+{
+    <p class="calendar-error">@message</p>
+}
+else if (reservations.Count == 0)
+{
+    <p>You do not have any appointments yet.</p>
+}
+else
+{
+    <table class="appointments-table">
+        <thead>
+            <tr>
+                <th>Room</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th></th>
+            </tr>
+        </thead>
+
+        <tbody>
+            @foreach (var reservation in reservations)
+            {
+                <tr>
+                    <td>@RoomName(reservation.RoomId)</td>
+
+                    <td>
+                        @reservation.StartTime.ToString("MMM d, yyyy")
+                    </td>
+
+                    <td>
+                        @reservation.StartTime.ToString("h:mm tt")
+                        -
+                        @reservation.EndTime.ToString("h:mm tt")
+                    </td>
+
+                    <td>
+                        <a class="button-link secondary"
+                           href="@($"/appointments/edit/{reservation.ReservationId}")">
+                            Edit
+                        </a>
+
+                        <button disabled="@deleting"
+                                @onclick="() => DeleteReservation(reservation.ReservationId)">
+                            Delete
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code
+{
+    private List<Reservation> reservations = new();
+    private List<Room> rooms = new();
+
+    private bool loading = true;
+    private bool deleting;
+
+    private string message = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadAppointments();
+    }
+
+    private async Task LoadAppointments()
+    {
+        loading = true;
+        message = "";
+
+        try
+        {
+            reservations =
+                await ReservationService.GetMyReservationsAsync();
+
+            rooms =
+                await RoomService.GetRoomsAsync();
+        }
+        catch (Exception ex)
+        {
+            message = $"Could not load your appointments: {ex.Message}";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task DeleteReservation(Guid reservationId)
+    {
+        deleting = true;
+        message = "";
+
+        try
+        {
+            await ReservationService.DeleteReservationAsync(reservationId);
+
+            reservations.RemoveAll(
+                reservation =>
+                    reservation.ReservationId == reservationId);
+        }
+        catch (Exception ex)
+        {
+            message = $"Could not delete that appointment: {ex.Message}";
+        }
+        finally
+        {
+            deleting = false;
+        }
+    }
+
+    private string RoomName(long roomId)
+    {
+        var room = rooms.FirstOrDefault(
+            room => room.RoomId == roomId);
+
+        return room?.RoomName ?? $"Room {roomId}";
+    }
+}
